@@ -3,20 +3,19 @@ import type { Answers } from "./questions";
 const KEY = "resernova.diagnostic.session";
 
 export type Session = {
-  diagnosticId: string | null;
   step: number;
   answers: Answers;
   updatedAt: number;
 };
 
-const empty: Session = { diagnosticId: null, step: 1, answers: {}, updatedAt: 0 };
+const empty: Session = { step: 1, answers: {}, updatedAt: 0 };
 
 export function loadSession(): Session {
   if (typeof window === "undefined") return empty;
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return empty;
-    const parsed = JSON.parse(raw) as Session;
+    const parsed = JSON.parse(raw) as Partial<Session> | null;
     if (!parsed || typeof parsed !== "object") return empty;
     return { ...empty, ...parsed };
   } catch {

@@ -10,10 +10,16 @@ import { QuestionField } from "@/components/diagnostic/QuestionField";
 import { AnimatedCounter } from "@/components/diagnostic/AnimatedCounter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { STEPS, isAnswered, numAnswer, visibleQuestions, type Answers } from "@/diagnostic/questions";
+import {
+  STEPS,
+  isAnswered,
+  numAnswer,
+  visibleQuestions,
+  type Answers,
+} from "@/diagnostic/questions";
 import { computeDiagnosis, formatMAD } from "@/diagnostic/engine";
 import { clearSession, loadSession, saveSession } from "@/diagnostic/session";
-import { completeDiagnostic, createDiagnostic, saveAnswers } from "@/lib/diagnostic-api";
+import { submitDiagnostic } from "@/lib/diagnostic-api";
 import { getSession, isAllowedEmail, signOut } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
@@ -39,7 +45,8 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "ReserNova Business Diagnostic for Salons & Spas" },
       {
         property: "og:description",
-        content: "Discover what your salon loses each month — missed bookings, no-shows and retention — in 5 minutes.",
+        content:
+          "Discover what your salon loses each month — missed bookings, no-shows and retention — in 5 minutes.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -58,16 +65,14 @@ function DiagnosticPage() {
   const [step, setStep] = useState(1);
   const [answers, setAnswers] = useState<Answers>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [diagnosticId, setDiagnosticId] = useState<string | null>(null);
   const [phase, setPhase] = useState<"wizard" | "lead">("wizard");
   const [submitting, setSubmitting] = useState(false);
   const [leadEmail, setLeadEmail] = useState("");
 
   useEffect(() => {
     const s = loadSession();
-    if (s.diagnosticId || Object.keys(s.answers).length) {
+    if (Object.keys(s.answers).length) {
       setHasSaved(true);
-      setDiagnosticId(s.diagnosticId);
       setAnswers(s.answers);
       setStep(s.step || 1);
     }
@@ -75,8 +80,8 @@ function DiagnosticPage() {
 
   useEffect(() => {
     if (!started) return;
-    saveSession({ diagnosticId, step, answers, updatedAt: Date.now() });
-  }, [started, diagnosticId, step, answers]);
+    saveSession({ step, answers, updatedAt: Date.now() });
+  }, [started, step, answers]);
 
   const questions = useMemo(() => visibleQuestions(answers, step), [answers, step]);
 
@@ -92,10 +97,8 @@ function DiagnosticPage() {
       setAnswers({});
       setStep(1);
     }
-    if (!diagnosticId) {
-      const id = await createDiagnostic(lang);
-      setDiagnosticId(id);
-    }
+    // Progress lives in localStorage; the server only sees the final
+    // submission in `submitLead` below.
   };
 
   const validate = () => {
@@ -103,8 +106,10 @@ function DiagnosticPage() {
     questions.forEach((q) => {
       if (!q.required) return;
       if (!isAnswered(q, answers)) next[q.id] = t("error.required");
-      else if (q.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(answers[q.id]))) next[q.id] = t("error.email");
-      else if (q.type === "phone" && String(answers[q.id]).replace(/\D/g, "").length < 8) next[q.id] = t("error.phone");
+      else if (q.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(answers[q.id])))
+        next[q.id] = t("error.email");
+      else if (q.type === "phone" && String(answers[q.id]).replace(/\D/g, "").length < 8)
+        next[q.id] = t("error.phone");
     });
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -112,7 +117,6 @@ function DiagnosticPage() {
 
   const goNext = async () => {
     if (!validate()) return;
-    if (diagnosticId) void saveAnswers(diagnosticId, answers, lang).catch(() => toast.error(t("error.network")));
     if (step < TOTAL_STEPS) {
       setStep(step + 1);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -126,16 +130,14 @@ function DiagnosticPage() {
   const submitLead = async () => {
     setSubmitting(true);
     try {
-      let id = diagnosticId;
-      if (!id) id = await createDiagnostic(lang);
-      if (!id) throw new Error("no diagnostic");
-      await completeDiagnostic(id, { ...answers, email: leadEmail }, lang, {
+      const id = await submitDiagnostic({ ...answers, email: leadEmail }, lang, {
         business_name: String(answers["business_name"] ?? ""),
         owner_name: String(answers["owner_name"] ?? ""),
         whatsapp: String(answers["whatsapp"] ?? answers["phone"] ?? ""),
         email: leadEmail,
         city: String(answers["city"] ?? ""),
       });
+      if (!id) throw new Error("submit failed");
       clearSession();
       navigate({ to: "/diagnostic/$id", params: { id } });
     } catch {
@@ -160,16 +162,29 @@ function DiagnosticPage() {
               <ShieldCheck className="size-3.5 text-primary" aria-hidden />
               {t("landing.badge")}
             </p>
-            <h1 className="mt-6 text-4xl font-bold text-balance-tight sm:text-5xl">{t("landing.title")}</h1>
-            <p className="mt-4 text-base text-muted-foreground sm:text-lg">{t("landing.subtitle")}</p>
+            <h1 className="mt-6 text-4xl font-bold text-balance-tight sm:text-5xl">
+              {t("landing.title")}
+            </h1>
+            <p className="mt-4 text-base text-muted-foreground sm:text-lg">
+              {t("landing.subtitle")}
+            </p>
 
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-              <Button size="lg" className="w-full gap-2 sm:w-auto" onClick={() => void begin(false)}>
+              <Button
+                size="lg"
+                className="w-full gap-2 sm:w-auto"
+                onClick={() => void begin(false)}
+              >
                 {t("landing.start")}
                 <ArrowRight className="size-4 rtl:rotate-180" aria-hidden />
               </Button>
               {hasSaved && (
-                <Button size="lg" variant="outline" className="w-full bg-card sm:w-auto" onClick={() => void begin(true)}>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full bg-card sm:w-auto"
+                  onClick={() => void begin(true)}
+                >
                   {t("landing.resume")}
                 </Button>
               )}
@@ -184,7 +199,9 @@ function DiagnosticPage() {
             {[1, 2, 3].map((i) => (
               <article key={i} className="rounded-2xl border border-border bg-card p-5 shadow-card">
                 <h2 className="text-base font-semibold">{t(`landing.point${i}.title`)}</h2>
-                <p className="mt-1.5 text-sm text-muted-foreground">{t(`landing.point${i}.body`)}</p>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  {t(`landing.point${i}.body`)}
+                </p>
               </article>
             ))}
           </section>
@@ -237,7 +254,12 @@ function DiagnosticPage() {
               />
             </div>
           </div>
-          <Button size="lg" className="mt-6 w-full gap-2" disabled={submitting} onClick={() => void submitLead()}>
+          <Button
+            size="lg"
+            className="mt-6 w-full gap-2"
+            disabled={submitting}
+            onClick={() => void submitLead()}
+          >
             {submitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
             {submitting ? t("lead.submitting") : t("lead.cta")}
           </Button>
@@ -250,7 +272,8 @@ function DiagnosticPage() {
   /* --------------------------------- wizard --------------------------------- */
   const live = computeDiagnosis(answers);
   const showMissed = step === 4 && numAnswer(answers, "average_ticket") > 0;
-  const showNoShow = step === 5 && numAnswer(answers, "average_ticket") > 0 && live.roi.appointmentsPerMonth > 0;
+  const showNoShow =
+    step === 5 && numAnswer(answers, "average_ticket") > 0 && live.roi.appointmentsPerMonth > 0;
 
   return (
     <main className="min-h-screen surface-grid">
@@ -285,25 +308,42 @@ function DiagnosticPage() {
 
               {(showMissed || showNoShow) && (
                 <div className="mt-8 animate-fade-up rounded-xl bg-primary-soft p-5">
-                  <p className="text-xs font-medium text-muted-foreground">{t("estimate.basedOn")}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {t("estimate.basedOn")}
+                  </p>
                   {showMissed && (
                     <p className="mt-1">
-                      <span className="block text-sm font-medium">{t("estimate.missedRevenue")}</span>
-                      <span className="text-3xl font-bold tabular-nums text-primary">
-                        <AnimatedCounter value={live.roi.missedRevenue} format={(n) => formatMAD(n, lang)} /> DH
+                      <span className="block text-sm font-medium">
+                        {t("estimate.missedRevenue")}
                       </span>
-                      <span className="ms-1 text-sm text-muted-foreground">{t("estimate.perMonth")}</span>
+                      <span className="text-3xl font-bold tabular-nums text-primary">
+                        <AnimatedCounter
+                          value={live.roi.missedRevenue}
+                          format={(n) => formatMAD(n, lang)}
+                        />{" "}
+                        DH
+                      </span>
+                      <span className="ms-1 text-sm text-muted-foreground">
+                        {t("estimate.perMonth")}
+                      </span>
                     </p>
                   )}
                   {showNoShow && (
                     <div className="mt-1">
                       <p className="text-sm font-medium">
-                        {t("estimate.noshowRate")}: <span className="tabular-nums">{live.roi.noShowRate}%</span>
+                        {t("estimate.noshowRate")}:{" "}
+                        <span className="tabular-nums">{live.roi.noShowRate}%</span>
                       </p>
                       <p className="text-sm font-medium">{t("estimate.noshowRevenue")}</p>
                       <p className="text-3xl font-bold tabular-nums text-primary">
-                        <AnimatedCounter value={live.roi.noShowRevenue} format={(n) => formatMAD(n, lang)} /> DH
-                        <span className="ms-1 text-sm font-medium text-muted-foreground">{t("estimate.perMonth")}</span>
+                        <AnimatedCounter
+                          value={live.roi.noShowRevenue}
+                          format={(n) => formatMAD(n, lang)}
+                        />{" "}
+                        DH
+                        <span className="ms-1 text-sm font-medium text-muted-foreground">
+                          {t("estimate.perMonth")}
+                        </span>
                       </p>
                     </div>
                   )}
