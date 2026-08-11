@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowRight, Building2, CalendarCheck, Check, Copy, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/i18n/language";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { formatMAD, PLAN_PRICES, type Diagnosis } from "@/diagnostic/engine";
 import { ScoreBar, ScoreDial } from "./ScoreDial";
 import { AnimatedCounter } from "./AnimatedCounter";
@@ -130,7 +131,17 @@ export function ResultsReport({
     <div className="space-y-10">
       {showWelcome && (
         <section className="overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft via-card to-card p-6 shadow-card md:p-8">
-          <p className="text-sm font-semibold uppercase tracking-wide text-primary">
+          <div className="flex items-center justify-between gap-4">
+            <img
+              src="/resernova.png"
+              alt="ReserNova"
+              className="h-16 w-auto sm:h-20"
+              width={320}
+              height={80}
+            />
+            <LanguageSwitcher compact />
+          </div>
+          <p className="mt-4 text-sm font-semibold uppercase tracking-wide text-primary">
             {t("app.product")}
           </p>
           {ownerName && (
@@ -154,9 +165,21 @@ export function ResultsReport({
 
       <header className="space-y-2">
         {!showWelcome && (
-          <p className="text-sm font-semibold uppercase tracking-wide text-primary">
-            {t("app.product")}
-          </p>
+          <section className="rounded-2xl border border-border bg-card p-6 shadow-card md:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <img
+                src="/resernova.png"
+                alt="ReserNova"
+                className="h-16 w-auto sm:h-20"
+                width={320}
+                height={80}
+              />
+              <LanguageSwitcher compact />
+            </div>
+            <p className="mt-4 text-sm font-semibold uppercase tracking-wide text-primary">
+              {t("app.product")}
+            </p>
+          </section>
         )}
         <h2 className="text-2xl font-bold text-balance-tight">{t("results.title")}</h2>
         <p className="max-w-2xl text-muted-foreground">{t("results.subtitle")}</p>

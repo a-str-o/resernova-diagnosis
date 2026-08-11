@@ -55,20 +55,6 @@ export const Route = createFileRoute("/")({
 
 const TOTAL_STEPS = 8;
 
-function BrandHeader() {
-  return (
-    <div className="flex justify-center pt-2 sm:pt-4">
-      <img
-        src="/resernova.png"
-        alt="ReserNova"
-        className="h-16 w-auto sm:h-20"
-        width={320}
-        height={80}
-      />
-    </div>
-  );
-}
-
 function DiagnosticPage() {
   const { t, lang } = useLanguage();
   const navigate = useNavigate();
@@ -164,7 +150,6 @@ function DiagnosticPage() {
     return (
       <main className="min-h-screen surface-grid">
         <div className="mx-auto flex max-w-5xl flex-col px-4 py-6 sm:px-6 sm:pt-10">
-          <BrandHeader />
           <section className="mx-auto mt-8 max-w-2xl text-center sm:mt-12">
             <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground shadow-card">
               <ShieldCheck className="size-3.5 text-primary" aria-hidden />
@@ -228,7 +213,6 @@ function DiagnosticPage() {
     return (
       <main className="min-h-screen surface-grid">
         <div className="mx-auto flex max-w-5xl flex-col px-4 py-6 sm:px-6 sm:pt-10">
-          <BrandHeader />
           <div className="mx-auto mt-8 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-lift sm:p-8">
           <h1 className="text-2xl font-bold text-balance-tight">{t("lead.title")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{t("lead.subtitle")}</p>
@@ -289,8 +273,7 @@ function DiagnosticPage() {
   return (
     <main className="min-h-screen surface-grid">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <BrandHeader />
-        <div className="mt-4 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="mt-2 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="lg:sticky lg:top-6 lg:self-start">
             <Stepper current={step} total={TOTAL_STEPS + 1} />
           </aside>

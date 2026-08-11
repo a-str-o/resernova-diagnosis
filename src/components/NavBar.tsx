@@ -154,4 +154,5 @@ export function NavBar() {
   );
 }
 
-export const NAVBAR_HIDDEN_PATHS = ["/login", "/"] as const;
+export const NAVBAR_HIDDEN_PATHS = ["/login"] as const;
+export const NAVBAR_HIDDEN_PREFIXES = ["/diagnostic/"] as const;

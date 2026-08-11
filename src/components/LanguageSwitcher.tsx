@@ -13,12 +13,16 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
   const current = LANGS.find((l) => l.code === lang)!;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu defaultOpen>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 rounded-full border-border/80 bg-card px-3">
-          <Globe className="size-4 text-muted-foreground" aria-hidden />
+        <Button
+          variant="default"
+          size="sm"
+          className="gap-2 rounded-full border-primary bg-primary px-3 text-primary-foreground hover:bg-primary/90"
+        >
+          <Globe className="size-4 text-primary-foreground" aria-hidden />
           <span aria-hidden>{current.flag}</span>
-          {!compact && <span className="text-sm font-medium">{current.label}</span>}
+          {!compact && <span className="text-sm font-medium text-primary-foreground">{current.label}</span>}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">

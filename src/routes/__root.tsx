@@ -12,7 +12,7 @@ import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { LanguageProvider } from "@/i18n/language";
-import { NavBar, NAVBAR_HIDDEN_PATHS } from "@/components/NavBar";
+import { NavBar, NAVBAR_HIDDEN_PATHS, NAVBAR_HIDDEN_PREFIXES } from "@/components/NavBar";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -126,7 +126,9 @@ function RootComponent() {
   const pathname = useRouterState({
     select: (s) => s.location.pathname,
   });
-  const showNavBar = !NAVBAR_HIDDEN_PATHS.includes(pathname as (typeof NAVBAR_HIDDEN_PATHS)[number]);
+  const showNavBar =
+    !NAVBAR_HIDDEN_PATHS.includes(pathname as (typeof NAVBAR_HIDDEN_PATHS)[number]) &&
+    !NAVBAR_HIDDEN_PREFIXES.some((p) => pathname.startsWith(p));
 
   return (
     <QueryClientProvider client={queryClient}>
