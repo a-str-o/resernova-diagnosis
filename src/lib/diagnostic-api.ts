@@ -89,6 +89,72 @@ export async function fetchDiagnostic(id: string): Promise<DiagnosticRow | null>
 }
 
 /**
+ * Update an existing diagnostic row. The "edit" action on the admin
+ * clients page uses this to overwrite the previous answers/lead/scores
+ * instead of inserting a duplicate row.
+ */
+export async function updateDiagnostic(
+  id: string,
+  answers: Answers,
+  lang: Lang,
+  lead: Lead,
+): Promise<boolean> {
+  const d = computeDiagnosis(answers);
+
+  const category_scores = (Object.keys(SCORE_MAX) as ScoreCategory[]).map((category) => ({
+    category,
+    score: d.scores[category],
+    max_score: SCORE_MAX[category],
+  }));
+
+  const patch = {
+    language: lang,
+    // lead / business info
+    business_name: lead.business_name || "—",
+    owner_name: lead.owner_name ?? null,
+    email: lead.email ?? null,
+    whatsapp: lead.whatsapp ?? null,
+    phone: (answers["phone"] as string) ?? null,
+    city: lead.city ?? null,
+    neighborhood: (answers["neighborhood"] as string) ?? null,
+    business_type: (answers["business_type"] as string) ?? null,
+    locations: (answers["locations"] as string) ?? null,
+    // form data + computed outputs
+    answers: answers as never,
+    category_scores,
+    pain_points: d.painPoints,
+    recommendations: d.recommendations,
+    total_score: d.totalScore,
+    priority: d.leadPriority,
+    recommended_plan: d.plan,
+    estimated_opportunity: d.roi.totalOpportunity,
+    missed_revenue: d.roi.missedRevenue,
+    noshow_revenue: d.roi.noShowRevenue,
+    completed_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from("diagnostics").update(patch).eq("id", id);
+  if (error) {
+    console.error("[diagnostic-api] updateDiagnostic failed:", error.message);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Delete a diagnostic row. Used by the admin clients page when the
+ * operator removes a client.
+ */
+export async function deleteDiagnostic(id: string): Promise<boolean> {
+  const { error } = await supabase.from("diagnostics").delete().eq("id", id);
+  if (error) {
+    console.error("[diagnostic-api] deleteDiagnostic failed:", error.message);
+    return false;
+  }
+  return true;
+}
+
+/**
  * One row from the public.diagnostics table. The admin page treats every
  * row as a "client" for display purposes — same shape, one table.
  */

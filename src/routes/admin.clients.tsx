@@ -1,18 +1,44 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2, Mail, Search, Share2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Eye,
+  Loader2,
+  Mail,
+  MoreHorizontal,
+  Pencil,
+  Search,
+  Share2,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getSession, isAllowedEmail, signOut } from "@/lib/auth";
-import { listDiagnostics, type DiagnosticRow, type DiagnosticsSort } from "@/lib/diagnostic-api";
+import {
+  deleteDiagnostic,
+  listDiagnostics,
+  type DiagnosticRow,
+  type DiagnosticsSort,
+} from "@/lib/diagnostic-api";
 
 export const Route = createFileRoute("/admin/clients")({
   ssr: false,
@@ -37,6 +63,7 @@ const STATUSES = ["new", "contacted", "demo_scheduled", "trial", "won", "lost", 
 type StatusFilter = (typeof STATUSES)[number] | "all";
 
 function ClientsPage() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [city, setCity] = useState("");
@@ -54,6 +81,21 @@ function ClientsPage() {
         order,
         limit: 200,
       }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteDiagnostic(id),
+    onSuccess: (ok, id) => {
+      if (ok) {
+        toast.success("Client deleted");
+        queryClient.invalidateQueries({ queryKey: ["clients"] });
+      } else {
+        toast.error("Could not delete client");
+      }
+      // id is referenced for symmetry / future optimistic updates
+      void id;
+    },
+    onError: () => toast.error("Could not delete client"),
   });
 
   const rows = query.data ?? [];
@@ -163,7 +205,14 @@ function ClientsPage() {
                     </td>
                   </tr>
                 ) : (
-                  rows.map((r) => <ClientRowView key={r.id} row={r} />)
+                  rows.map((r) => (
+                    <ClientRowView
+                      key={r.id}
+                      row={r}
+                      onDelete={(id) => deleteMutation.mutate(id)}
+                      deleting={deleteMutation.isPending}
+                    />
+                  ))
                 )}
               </tbody>
             </table>
@@ -174,7 +223,15 @@ function ClientsPage() {
   );
 }
 
-function ClientRowView({ row }: { row: DiagnosticRow }) {
+function ClientRowView({
+  row,
+  onDelete,
+  deleting,
+}: {
+  row: DiagnosticRow;
+  onDelete: (id: string) => void;
+  deleting: boolean;
+}) {
   const navigate = useNavigate();
   const submitted = row.submitted_at ?? row.created_at;
   const open = () => navigate({ to: "/diagnostic/$id", params: { id: row.id } });
@@ -212,13 +269,22 @@ function ClientRowView({ row }: { row: DiagnosticRow }) {
         {new Date(submitted).toLocaleString()}
       </td>
       <td className="px-4 py-3 text-end">
-        <ShareMenu row={row} />
+        <RowActions row={row} onDelete={onDelete} deleting={deleting} />
       </td>
     </tr>
   );
 }
 
-function ShareMenu({ row }: { row: DiagnosticRow }) {
+function RowActions({
+  row,
+  onDelete,
+  deleting,
+}: {
+  row: DiagnosticRow;
+  onDelete: (id: string) => void;
+  deleting: boolean;
+}) {
+  const navigate = useNavigate();
   // Build the public report URL. Uses the admin page's origin so the link
   // matches wherever the staff is browsing from (prod vs local).
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -244,21 +310,49 @@ function ShareMenu({ row }: { row: DiagnosticRow }) {
     }
   };
 
+  const onEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Take the operator into the wizard with the row's answers prefilled.
+    // On submit the existing row is updated (not a new insert).
+    navigate({ to: "/", search: { edit: row.id } });
+  };
+
   return (
-    <div onClick={stop} onKeyDown={stop}>
+    <div onClick={stop} onKeyDown={stop} className="flex items-center justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8"
+        aria-label={`View report for ${row.business_name}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate({ to: "/diagnostic/$id", params: { id: row.id } });
+        }}
+      >
+        <Eye className="size-4" aria-hidden />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8"
+        aria-label={`Edit ${row.business_name}`}
+        onClick={onEdit}
+      >
+        <Pencil className="size-4" aria-hidden />
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
             className="size-8"
-            aria-label={`Share report for ${row.business_name}`}
+            aria-label={`More actions for ${row.business_name}`}
             onClick={stop}
           >
-            <Share2 className="size-4" aria-hidden />
+            <MoreHorizontal className="size-4" aria-hidden />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[180px]">
+        <DropdownMenuContent align="end" className="min-w-[200px]">
           <DropdownMenuItem asChild>
             <a
               href={`https://wa.me/?text=${encodeURIComponent(waText)}`}
@@ -269,7 +363,7 @@ function ShareMenu({ row }: { row: DiagnosticRow }) {
               <svg viewBox="0 0 24 24" className="size-4 fill-current" aria-hidden>
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
               </svg>
-              WhatsApp
+              Share via WhatsApp
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
@@ -279,9 +373,42 @@ function ShareMenu({ row }: { row: DiagnosticRow }) {
               className="flex items-center gap-2"
             >
               <Mail className="size-4" aria-hidden />
-              Email
+              Share via email
             </a>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <DropdownMenuItem
+                onSelect={(e) => e.preventDefault()}
+                className="text-danger focus:text-danger"
+              >
+                <Trash2 className="size-4" aria-hidden />
+                Delete client
+              </DropdownMenuItem>
+            </AlertDialogTrigger>
+            <AlertDialogContent onClick={stop}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this client?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently removes the diagnostic record for{" "}
+                  <span className="font-semibold text-foreground">{row.business_name}</span>.
+                  This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={deleting}
+                  onClick={() => onDelete(row.id)}
+                  className="bg-danger text-danger-foreground hover:bg-danger/90"
+                >
+                  {deleting && <Loader2 className="size-4 animate-spin" aria-hidden />}
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

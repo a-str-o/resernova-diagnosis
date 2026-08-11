@@ -17,11 +17,15 @@ import {
 } from "@/diagnostic/questions";
 import { computeDiagnosis, formatMAD } from "@/diagnostic/engine";
 import { clearSession, loadSession, saveSession } from "@/diagnostic/session";
-import { submitDiagnostic } from "@/lib/diagnostic-api";
+import { fetchDiagnostic, submitDiagnostic, updateDiagnostic } from "@/lib/diagnostic-api";
 import { getSession, isAllowedEmail, signOut } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>): { edit?: string } => {
+    const edit = typeof search["edit"] === "string" ? (search["edit"] as string) : undefined;
+    return edit ? { edit } : {};
+  },
   // Whole app is gated behind Supabase login. Only the allowed email
   // passes; anyone else is signed out and bounced to /login.
   beforeLoad: async () => {
@@ -58,6 +62,7 @@ const TOTAL_STEPS = 8;
 function DiagnosticPage() {
   const { t, lang } = useLanguage();
   const navigate = useNavigate();
+  const { edit: editId } = Route.useSearch() as { edit?: string };
   const [started, setStarted] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   const [step, setStep] = useState(1);
@@ -68,13 +73,39 @@ function DiagnosticPage() {
   const [leadEmail, setLeadEmail] = useState("");
 
   useEffect(() => {
+    // Edit mode: fetch the row, hydrate answers, jump straight to step 1.
+    // We never want to show the landing page when reopening a record.
+    if (editId) {
+      let cancelled = false;
+      void (async () => {
+        const row = await fetchDiagnostic(editId);
+        if (cancelled || !row) return;
+        const seeded: Answers = { ...((row.answers as Answers) ?? {}) };
+        // Make sure the lead fields are present in the answers object so
+        // the wizard re-validates them and the lead form pre-fills.
+        const existing = seeded as Record<string, unknown>;
+        existing["owner_name"] = row.owner_name ?? existing["owner_name"] ?? "";
+        existing["business_name"] = row.business_name ?? existing["business_name"] ?? "";
+        existing["whatsapp"] = row.whatsapp ?? existing["whatsapp"] ?? "";
+        existing["email"] = row.email ?? existing["email"] ?? "";
+        existing["city"] = row.city ?? existing["city"] ?? "";
+        setAnswers(seeded);
+        setStep(1);
+        setStarted(true);
+        setLeadEmail(String(row.email ?? ""));
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
     const s = loadSession();
     if (Object.keys(s.answers).length) {
       setHasSaved(true);
       setAnswers(s.answers);
       setStep(s.step || 1);
     }
-  }, []);
+    return undefined;
+  }, [editId]);
 
   useEffect(() => {
     if (!started) return;
@@ -99,6 +130,23 @@ function DiagnosticPage() {
     // submission in `submitLead` below.
   };
 
+  const validateStep = useCallback(
+    (n: number): boolean => {
+      // Returns true when every required question on step `n` is answered
+      // and format-valid. Does NOT mutate component state.
+      const stepQs = visibleQuestions(answers, n);
+      for (const q of stepQs) {
+        if (!q.required) continue;
+        if (!isAnswered(q, answers)) return false;
+        const v = String(answers[q.id] ?? "");
+        if (q.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return false;
+        if (q.type === "phone" && v.replace(/\D/g, "").length < 8) return false;
+      }
+      return true;
+    },
+    [answers],
+  );
+
   const validate = () => {
     const next: Record<string, string> = {};
     questions.forEach((q) => {
@@ -113,12 +161,41 @@ function DiagnosticPage() {
     return Object.keys(next).length === 0;
   };
 
+  // Recompute the set of steps that have any unanswered required question.
+  // Used by the stepper to color the step pill red.
+  const invalidSteps = useMemo(() => {
+    const set = new Set<number>();
+    for (let n = 1; n <= TOTAL_STEPS; n += 1) {
+      if (!validateStep(n)) set.add(n);
+    }
+    return set;
+  }, [validateStep]);
+
+  const goToStep = useCallback((n: number) => {
+    // Free navigation — the stepper lets the operator jump anywhere so
+    // they can review/edit any step without going through the previous
+    // ones. Submission is gated separately on the final step.
+    const clamped = Math.max(1, Math.min(TOTAL_STEPS, n));
+    setStep(clamped);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   const goNext = async () => {
     if (!validate()) return;
     if (step < TOTAL_STEPS) {
       setStep(step + 1);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
+      // Final step → lead form. Validate every step first. If anything is
+      // missing, jump to the first invalid step and refuse to advance.
+      const firstInvalid = Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).find(
+        (n) => !validateStep(n),
+      );
+      if (firstInvalid) {
+        setStep(firstInvalid);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
       setPhase("lead");
       setLeadEmail(String(answers["email"] ?? ""));
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -126,15 +203,51 @@ function DiagnosticPage() {
   };
 
   const submitLead = async () => {
+    // Re-check every wizard step before touching the lead form. The stepper
+    // already turned incomplete steps red, but a stale `errors` map would
+    // hide that, so this is the final gate.
+    const firstInvalid = Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).find(
+      (n) => !validateStep(n),
+    );
+    if (firstInvalid) {
+      setPhase("wizard");
+      setStep(firstInvalid);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (!leadEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadEmail)) {
+      toast.error(t("error.email"));
+      return;
+    }
+    const requiredLead: Array<[string, string]> = [
+      ["owner_name", t("lead.name")],
+      ["business_name", t("lead.business")],
+      ["whatsapp", t("lead.whatsapp")],
+      ["city", t("lead.city")],
+    ];
+    const missing = requiredLead.find(([k]) => !String(answers[k] ?? "").trim());
+    if (missing) {
+      toast.error(`${t("error.required")}: ${missing[1]}`);
+      return;
+    }
     setSubmitting(true);
     try {
-      const id = await submitDiagnostic({ ...answers, email: leadEmail }, lang, {
+      const lead = {
         business_name: String(answers["business_name"] ?? ""),
         owner_name: String(answers["owner_name"] ?? ""),
         whatsapp: String(answers["whatsapp"] ?? answers["phone"] ?? ""),
         email: leadEmail,
         city: String(answers["city"] ?? ""),
-      });
+      };
+      if (editId) {
+        // Edit flow: overwrite the existing row instead of inserting a new one.
+        const ok = await updateDiagnostic(editId, { ...answers, email: leadEmail }, lang, lead);
+        if (!ok) throw new Error("update failed");
+        clearSession();
+        navigate({ to: "/diagnostic/$id", params: { id: editId } });
+        return;
+      }
+      const id = await submitDiagnostic({ ...answers, email: leadEmail }, lang, lead);
       if (!id) throw new Error("submit failed");
       clearSession();
       navigate({ to: "/diagnostic/$id", params: { id } });
@@ -275,7 +388,12 @@ function DiagnosticPage() {
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="mt-2 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="lg:sticky lg:top-6 lg:self-start">
-            <Stepper current={step} total={TOTAL_STEPS + 1} />
+            <Stepper
+              current={step}
+              total={TOTAL_STEPS + 1}
+              invalidSteps={invalidSteps}
+              onSelect={goToStep}
+            />
           </aside>
 
           <section className="min-w-0">
