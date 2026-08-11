@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ALLOWED_EMAIL, getSession, signInWithPassword } from "@/lib/auth";
+import { getSession, signInWithPassword } from "@/lib/auth";
 
 export const Route = createFileRoute("/login")({
   ssr: false,
@@ -20,7 +20,9 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState(ALLOWED_EMAIL);
+  // Start with an empty field so users see a fresh form. Browser autofill
+  // will still offer previously used addresses; that's expected.
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
