@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -11,6 +12,7 @@ import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { LanguageProvider } from "@/i18n/language";
+import { NavBar, NAVBAR_HIDDEN_PATHS } from "@/components/NavBar";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -118,10 +120,18 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  // useRouterState gives us the current pathname without re-rendering the
+  // whole tree on every navigation — just enough to decide whether to
+  // render the global NavBar (we hide it on /login to keep that form focused).
+  const pathname = useRouterState({
+    select: (s) => s.location.pathname,
+  });
+  const showNavBar = !NAVBAR_HIDDEN_PATHS.includes(pathname as (typeof NAVBAR_HIDDEN_PATHS)[number]);
 
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
+        {showNavBar && <NavBar />}
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
         <Toaster position="top-center" richColors />

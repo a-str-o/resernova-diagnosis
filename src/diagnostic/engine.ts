@@ -44,7 +44,7 @@ export type ProductKey =
 
 export type Severity = "high" | "medium" | "low";
 export type Priority = "high" | "medium" | "low";
-export type PlanKey = "starter" | "pro" | "custom";
+export type PlanKey = "free" | "starter" | "pro" | "custom";
 export type LeadPriority = "hot" | "qualified" | "nurture" | "low";
 
 export type PainPoint = {
@@ -79,7 +79,7 @@ export type Diagnosis = {
   objections: string[];
 };
 
-export const PLAN_PRICES: Record<PlanKey, number> = { starter: 299, pro: 549, custom: 0 };
+export const PLAN_PRICES: Record<PlanKey, number> = { free: 0, starter: 299, pro: 549, custom: 0 };
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 

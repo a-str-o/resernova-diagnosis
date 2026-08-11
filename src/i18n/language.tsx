@@ -8,7 +8,7 @@ type Ctx = {
   dir: "ltr" | "rtl";
   isRTL: boolean;
   setLang: (l: Lang) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
 };
 
 const LanguageContext = createContext<Ctx | null>(null);
@@ -47,7 +47,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       dir: lang === "ar" ? "rtl" : "ltr",
       isRTL: lang === "ar",
       setLang,
-      t: (key: string) => translate(key, lang),
+      t: (key: string, params?: Record<string, string | number>) => translate(key, lang, params),
     }),
     [lang, setLang],
   );

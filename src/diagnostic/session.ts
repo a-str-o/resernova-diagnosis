@@ -2,6 +2,8 @@ import type { Answers } from "./questions";
 
 const KEY = "resernova.diagnostic.session";
 
+export const DIAGNOSTIC_SESSION_KEY = KEY;
+
 export type Session = {
   step: number;
   answers: Answers;

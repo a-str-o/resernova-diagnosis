@@ -3,8 +3,6 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Clock, Loader2, Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/i18n/language";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { Logo } from "@/components/Logo";
 import { Stepper } from "@/components/diagnostic/Stepper";
 import { QuestionField } from "@/components/diagnostic/QuestionField";
 import { AnimatedCounter } from "@/components/diagnostic/AnimatedCounter";
@@ -151,13 +149,8 @@ function DiagnosticPage() {
   if (!started) {
     return (
       <main className="min-h-screen surface-grid">
-        <div className="mx-auto flex max-w-5xl flex-col px-4 py-6 sm:px-6">
-          <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-            <Logo size="md" />
-            <LanguageSwitcher />
-          </header>
-
-          <section className="mx-auto mt-14 max-w-2xl text-center sm:mt-24">
+        <div className="mx-auto flex max-w-5xl flex-col px-4 py-10 sm:px-6 sm:pt-14">
+          <section className="mx-auto mt-8 max-w-2xl text-center sm:mt-16">
             <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground shadow-card">
               <ShieldCheck className="size-3.5 text-primary" aria-hidden />
               {t("landing.badge")}
@@ -278,12 +271,7 @@ function DiagnosticPage() {
   return (
     <main className="min-h-screen surface-grid">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-          <Logo size="sm" />
-          <LanguageSwitcher compact />
-        </header>
-
-        <div className="mt-6 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="mt-2 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="lg:sticky lg:top-6 lg:self-start">
             <Stepper current={step} total={TOTAL_STEPS + 1} />
           </aside>

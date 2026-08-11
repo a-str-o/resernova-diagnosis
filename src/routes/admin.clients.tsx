@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, LogOut, Mail, Search, Share2 } from "lucide-react";
+import { Loader2, Mail, Search, Share2 } from "lucide-react";
 import { toast } from "sonner";
-import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ALLOWED_EMAIL, getSession, isAllowedEmail, signOut } from "@/lib/auth";
+import { getSession, isAllowedEmail, signOut } from "@/lib/auth";
 import { listDiagnostics, type DiagnosticRow, type DiagnosticsSort } from "@/lib/diagnostic-api";
 
 export const Route = createFileRoute("/admin/clients")({
@@ -38,7 +37,6 @@ const STATUSES = ["new", "contacted", "demo_scheduled", "trial", "won", "lost", 
 type StatusFilter = (typeof STATUSES)[number] | "all";
 
 function ClientsPage() {
-  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [city, setCity] = useState("");
@@ -64,27 +62,10 @@ function ClientsPage() {
     [rows],
   );
 
-  const onSignOut = async () => {
-    await signOut();
-    toast.success("Signed out");
-    navigate({ to: "/login" });
-  };
-
   return (
     <main className="min-h-screen surface-grid">
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-        <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-          <Logo size="md" />
-          <div className="flex items-center gap-3">
-            <span className="hidden text-xs text-muted-foreground sm:inline">{ALLOWED_EMAIL}</span>
-            <Button size="sm" variant="outline" className="gap-2" onClick={() => void onSignOut()}>
-              <LogOut className="size-4" aria-hidden />
-              Sign out
-            </Button>
-          </div>
-        </header>
-
-        <h1 className="mt-8 text-2xl font-bold">Clients</h1>
+        <h1 className="mt-2 text-2xl font-bold">Clients</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {rows.length} {rows.length === 1 ? "row" : "rows"}
           {query.isFetching && (
